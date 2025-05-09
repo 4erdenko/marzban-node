@@ -6,7 +6,7 @@ import threading
 from collections import deque
 from contextlib import contextmanager
 
-from config import DEBUG, SSL_CERT_FILE, SSL_KEY_FILE, XRAY_API_HOST, XRAY_API_PORT
+from config import DEBUG, SSL_CERT_FILE, SSL_KEY_FILE, XRAY_API_HOST, XRAY_API_PORT, INBOUNDS
 from logger import logger
 
 
@@ -32,8 +32,11 @@ class XRayConfig(dict):
         return json.dumps(self, **json_kwargs)
 
     def _apply_api(self):
-        for inbound in self.get('inbounds', []):
-            if inbound.get('protocol') == 'dokodemo-door':
+        for inbound in self.get('inbounds', []).copy():
+            if inbound.get('protocol') == 'dokodemo-door' and inbound.get('tag') == 'API_INBOUND':
+                self['inbounds'].remove(inbound)
+                
+            elif INBOUNDS and inbound.get('tag') not in INBOUNDS:
                 self['inbounds'].remove(inbound)
 
         for rule in self.get('routing', {}).get("rules", []):
@@ -117,7 +120,8 @@ class XRayCore:
 
     def get_version(self):
         cmd = [self.executable_path, "version"]
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf-8')
+        output = subprocess.check_output(
+            cmd, stderr=subprocess.STDOUT).decode('utf-8')
         m = re.match(r'^Xray (\d+\.\d+\.\d+)', output)
         if m:
             return m.groups()[0]
